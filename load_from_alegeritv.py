@@ -17,10 +17,10 @@ _slug_pattern = re.compile(r'\W+', re.UNICODE)
 def slugify(s):
     return _slug_pattern.sub('-', s.lower())
 
-civic = rdflib.Namespace('http://civic.grep.ro/rdf/')
+civic = rdflib.Namespace('http://civic.grep.ro/')
 civic_person = rdflib.Namespace(civic + 'person/')
 civic_office = rdflib.Namespace(civic + 'office/')
-civic_types = rdflib.Namespace(civic + 'types/')
+civic_types = rdflib.Namespace(civic + 'rdftypes/')
 dc = rdflib.Namespace('http://purl.org/dc/elements/1.1/')
 foaf = rdflib.Namespace('http://xmlns.com/foaf/0.1/')
 from rdflib.namespace import RDF
