@@ -20,8 +20,10 @@ def slugify(s):
 civic = rdflib.Namespace('http://civic.grep.ro/rdf/')
 civic_person = rdflib.Namespace(civic + 'person/')
 civic_office = rdflib.Namespace(civic + 'office/')
+civic_types = rdflib.Namespace(civic + 'types/')
 dc = rdflib.Namespace('http://purl.org/dc/elements/1.1/')
 foaf = rdflib.Namespace('http://xmlns.com/foaf/0.1/')
+from rdflib.namespace import RDF
 
 # 'county' - judet (NUTS-3)
 # 'city' - oras, municipiu
@@ -44,6 +46,7 @@ def main():
                             force_to_unicode(row['nume']).strip())
         person = civic_person[slugify(name)]
         graph.add((person, foaf['name'], rdflib.Literal(name)))
+        graph.add((person, RDF['type'], civic_types['Person']))
         candidati[id] = person
 
     admin_level_map = {
