@@ -1,7 +1,6 @@
 import sys
 import json
-import MySQLdb
-from miniorm import MiniOrm
+import sqlite3
 import rdflib
 import re
 
@@ -31,17 +30,25 @@ from rdflib.namespace import RDF
 # 'commune' - comuna
 # TODO link with NUTS (http://en.wikipedia.org/wiki/Nomenclature_of_Territorial_Units_for_Statistics)
 
-def main():
-    with open(sys.argv[1]) as f:
-        config = dict((str(k),v) for k,v in json.load(f).items())
+class DatabaseReader(object):
+    def __init__(self, db_path):
+        self.connection = sqlite3.connect(db_path)
+        self.connection.text_factory = str
 
+    def iter_table(self, table_name):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT * FROM %s" % table_name)
+        columns = [col[0] for col in cursor.description]
+        for row in cursor:
+            yield row[0], dict(zip(columns, row))
+
+def main():
     graph = rdflib.Graph()
 
-    connection = MySQLdb.connect(**config)
-    o = MiniOrm(connection.cursor())
+    sql = DatabaseReader(sys.argv[1])
 
     candidati = {}
-    for id, row in o.iter_table('candidati'):
+    for id, row in sql.iter_table('candidati'):
         name =  u"%s %s" % (force_to_unicode(row['prenume']).strip(),
                             force_to_unicode(row['nume']).strip())
         person = civic_person[slugify(name)]
@@ -58,7 +65,7 @@ def main():
     }
 
     circumscriptii = {}
-    for id, row in o.iter_table('circumscriptii'):
+    for id, row in sql.iter_table('circumscriptii'):
         admin_level = admin_level_map.get(row['id_tip'])
         if admin_level is None:
             continue
@@ -69,7 +76,7 @@ def main():
         circumscriptii[id] = circumscriptie
         graph.add((circumscriptie, dc['name'], rdflib.Literal(name)))
 
-    for id, row in o.iter_table('campanii_candidati'):
+    for id, row in sql.iter_table('campanii_candidati'):
         if row['castigator'] != 3:
             continue
         person = candidati[row['id_candidat']]
