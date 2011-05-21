@@ -40,7 +40,7 @@ class DatabaseReader(object):
         cursor.execute("SELECT * FROM %s" % table_name)
         columns = [col[0] for col in cursor.description]
         for row in cursor:
-            yield row[0], dict(zip(columns, row))
+            yield dict(zip(columns, row))
 
 def main():
     graph = rdflib.Graph()
@@ -48,13 +48,13 @@ def main():
     sql = DatabaseReader(sys.argv[1])
 
     candidati = {}
-    for id, row in sql.iter_table('candidati'):
+    for row in sql.iter_table('candidati'):
         name =  u"%s %s" % (force_to_unicode(row['prenume']).strip(),
                             force_to_unicode(row['nume']).strip())
         person = civic_person[slugify(name)]
         graph.add((person, foaf['name'], rdflib.Literal(name)))
         graph.add((person, RDF['type'], civic_types['Person']))
-        candidati[id] = person
+        candidati[row['id']] = person
 
     admin_level_map = {
         3: civic['county/'],  # judet
@@ -65,7 +65,7 @@ def main():
     }
 
     circumscriptii = {}
-    for id, row in sql.iter_table('circumscriptii'):
+    for row in sql.iter_table('circumscriptii'):
         admin_level = admin_level_map.get(row['id_tip'])
         if admin_level is None:
             continue
@@ -73,10 +73,10 @@ def main():
         s = slugify(name)
         circumscriptie = rdflib.Namespace(admin_level)[s]
 
-        circumscriptii[id] = circumscriptie
+        circumscriptii[row['id']] = circumscriptie
         graph.add((circumscriptie, dc['name'], rdflib.Literal(name)))
 
-    for id, row in sql.iter_table('campanii_candidati'):
+    for row in sql.iter_table('campanii_candidati'):
         if row['castigator'] != 3:
             continue
         person = candidati[row['id_candidat']]
