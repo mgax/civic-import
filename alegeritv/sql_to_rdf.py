@@ -19,16 +19,21 @@ def slugify(s):
 civic = rdflib.Namespace('http://civic.grep.ro/')
 civic_person = rdflib.Namespace(civic + 'person/')
 civic_office = rdflib.Namespace(civic + 'office/')
+civic_party = rdflib.Namespace(civic + 'party/')
 civic_types = rdflib.Namespace(civic + 'rdftypes/')
 dc = rdflib.Namespace('http://purl.org/dc/elements/1.1/')
 foaf = rdflib.Namespace('http://xmlns.com/foaf/0.1/')
-from rdflib.namespace import RDF
+from rdflib.namespace import RDF, RDFS
 
 # 'county' - judet (NUTS-3)
 # 'city' - oras, municipiu
 # 'sector' - sector
 # 'commune' - comuna
+
 # TODO link with NUTS (http://en.wikipedia.org/wiki/Nomenclature_of_Territorial_Units_for_Statistics)
+# TODO which to use, campanii_candidati.id_partid_acum or candidati.id_partid?
+# TODO s/civic_types/civic_terms/
+# TODO what does campanii_candidati.id_alegere point to?
 
 class DatabaseReader(object):
     def __init__(self, db_path):
@@ -47,14 +52,29 @@ def main():
 
     sql = DatabaseReader(sys.argv[1])
 
-    candidati = {}
+    parties = {}
+    for row in sql.iter_table('partide'):
+        party = civic_party[slugify(row['den_scurta'])]
+        graph.add((party, RDFS['label'], rdflib.Literal(row['denumire'])))
+        parties[row['id']] = party
+
+    people = {}
+    campaign_map = {}
     for row in sql.iter_table('candidati'):
         name =  u"%s %s" % (force_to_unicode(row['prenume']).strip(),
                             force_to_unicode(row['nume']).strip())
         person = civic_person[slugify(name)]
         graph.add((person, foaf['name'], rdflib.Literal(name)))
         graph.add((person, RDF['type'], civic_types['Person']))
-        candidati[row['id']] = person
+        people[row['id']] = person
+
+        campaign = rdflib.BNode()
+        graph.add((campaign, RDF['type'], civic_types['Campaign']))
+        graph.add((campaign, civic_types['candidate'], person))
+        party = parties.get(row['id_partid'], None)
+        if party is not None:
+            graph.add((campaign, civic_types['party'], party))
+        campaign_map[row['id']] = campaign
 
     admin_level_map = {
         3: civic['county/'],  # judet
@@ -79,9 +99,13 @@ def main():
     for row in sql.iter_table('campanii_candidati'):
         if row['castigator'] != 3:
             continue
-        person = candidati[row['id_candidat']]
+        person = people[row['id_candidat']]
+        campaign = campaign_map[row['id_candidat']]
         circumscriptie = circumscriptii[row['id_circumscriptie']]
         graph.add((person, civic_office['mayor'], circumscriptie))
+        if row['rezultat_procent'] is not None:
+            fraction = rdflib.Literal(row['rezultat_procent'] / 100)
+            graph.add((campaign, civic_types['voteFraction'], fraction))
 
     graph.serialize(sys.stdout)
 
