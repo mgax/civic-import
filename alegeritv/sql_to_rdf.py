@@ -61,7 +61,6 @@ def main():
         parties[row['id']] = party
 
     people = {}
-    campaign_map = {}
     for row in sql.iter_table('candidati'):
         name =  u"%s %s" % (force_to_unicode(row['prenume']).strip(),
                             force_to_unicode(row['nume']).strip())
@@ -69,14 +68,9 @@ def main():
         graph.add((person, foaf['name'], rdflib.Literal(name)))
         graph.add((person, RDF['type'], civic_types['Person']))
         people[row['id']] = person
-
-        campaign = rdflib.BNode()
-        graph.add((campaign, RDF['type'], civic_types['Campaign']))
-        graph.add((campaign, civic_types['candidate'], person))
         party = parties.get(row['id_partid'], None)
         if party is not None:
-            graph.add((campaign, civic_types['party'], party))
-        campaign_map[row['id']] = campaign
+            graph.add((person, civic_types['memberInParty'], party))
 
     admin_level_map = {
         3: civic['county/'],  # judet
@@ -108,8 +102,13 @@ def main():
 
     for row in sql.iter_table('campanii_candidati'):
         person = people[row['id_candidat']]
-        campaign = campaign_map[row['id_candidat']]
         election = election_map[row['id_alegere']]
+        campaign = rdflib.BNode()
+        graph.add((campaign, RDF['type'], civic_types['Campaign']))
+        graph.add((campaign, civic_types['candidate'], person))
+        party = parties.get(row['id_partid_acum'], None)
+        if party is not None:
+            graph.add((campaign, civic_types['party'], party))
         graph.add((campaign, civic_types['election'], election))
         if row['rezultat_procent'] is not None:
             fraction = rdflib.Literal(row['rezultat_procent'] / 100)
