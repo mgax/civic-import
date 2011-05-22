@@ -21,6 +21,7 @@ civic_person = rdflib.Namespace(civic + 'person/')
 civic_office = rdflib.Namespace(civic + 'office/')
 civic_party = rdflib.Namespace(civic + 'party/')
 civic_types = rdflib.Namespace(civic + 'rdftypes/')
+civic_election = rdflib.Namespace(civic + 'election/')
 dc = rdflib.Namespace('http://purl.org/dc/elements/1.1/')
 foaf = rdflib.Namespace('http://xmlns.com/foaf/0.1/')
 from rdflib.namespace import RDF, RDFS
@@ -95,11 +96,21 @@ def main():
         circumscriptie = rdflib.Namespace(admin_level)[s]
 
         circumscriptii[row['id']] = circumscriptie
-        graph.add((circumscriptie, dc['name'], rdflib.Literal(name)))
+        graph.add((circumscriptie, RDFS['label'], rdflib.Literal(name)))
+
+    election_map = {}
+    for row in [{'id': 14, 'name': "2008 Local elections, round 1"},
+                {'id': 15, 'name': "2008 Local elections, round 2"}]:
+        election = civic_election[slugify(row['name'])]
+        graph.add((election, RDF['type'], civic_types['Election']))
+        graph.add((election, RDFS['label'], rdflib.Literal(row['name'])))
+        election_map[row['id']] = election
 
     for row in sql.iter_table('campanii_candidati'):
         person = people[row['id_candidat']]
         campaign = campaign_map[row['id_candidat']]
+        election = election_map[row['id_alegere']]
+        graph.add((campaign, civic_types['election'], election))
         if row['rezultat_procent'] is not None:
             fraction = rdflib.Literal(row['rezultat_procent'] / 100)
             graph.add((campaign, civic_types['voteFraction'], fraction))
