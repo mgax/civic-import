@@ -56,6 +56,7 @@ def main():
     for row in sql.iter_table('partide'):
         party = civic_party[slugify(row['den_scurta'])]
         graph.add((party, RDFS['label'], rdflib.Literal(row['denumire'])))
+        graph.add((party, RDF['type'], civic_types['Party']))
         parties[row['id']] = party
 
     people = {}
@@ -97,16 +98,18 @@ def main():
         graph.add((circumscriptie, dc['name'], rdflib.Literal(name)))
 
     for row in sql.iter_table('campanii_candidati'):
-        if row['castigator'] != 3:
-            continue
         person = people[row['id_candidat']]
         campaign = campaign_map[row['id_candidat']]
-        circumscriptie = circumscriptii[row['id_circumscriptie']]
-        graph.add((person, civic_office['mayor'], circumscriptie))
         if row['rezultat_procent'] is not None:
             fraction = rdflib.Literal(row['rezultat_procent'] / 100)
             graph.add((campaign, civic_types['voteFraction'], fraction))
+        win = bool(row['castigator'] == 3)
+        graph.add((campaign, civic_types['win'], rdflib.Literal(win)))
+        if win:
+            circumscriptie = circumscriptii[row['id_circumscriptie']]
+            graph.add((person, civic_office['mayor'], circumscriptie))
 
+    print>>sys.stderr, '%d triples' % len(graph)
     graph.serialize(sys.stdout)
 
 if __name__ == '__main__':
