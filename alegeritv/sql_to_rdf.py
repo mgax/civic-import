@@ -3,6 +3,7 @@ import json
 import sqlite3
 import rdflib
 import re
+from unidecode import unidecode
 
 def force_to_unicode(s):
     if type(s) is unicode:
@@ -14,7 +15,7 @@ def force_to_unicode(s):
 
 _slug_pattern = re.compile(r'\W+', re.UNICODE)
 def slugify(s):
-    return _slug_pattern.sub('-', s.lower())
+    return _slug_pattern.sub('-', str(unidecode(s)).lower())
 
 civic = rdflib.Namespace('http://civic.grep.ro/')
 civic_person = rdflib.Namespace(civic + 'person/')
