@@ -125,9 +125,11 @@ def main():
             graph.add((campaign, civic_types['voteFraction'], fraction))
         win = bool(row['castigator'] == 3)
         graph.add((campaign, civic_types['win'], rdflib.Literal(win)))
-        if win:
-            circumscriptie = circumscriptii[row['id_circumscriptie']]
-            graph.add((person, civic_office['mayor'], circumscriptie))
+        circumscriptie = circumscriptii.get(row['id_circumscriptie'], None)
+        if circumscriptie is not None:
+            graph.add((campaign, civic_types['constituency'], circumscriptie))
+            if win:
+                graph.add((person, civic_office['mayor'], circumscriptie))
 
     print>>sys.stderr, '%d triples' % len(graph)
     graph.serialize(sys.stdout)
