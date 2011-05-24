@@ -1,6 +1,5 @@
 import sys
 import json
-import sqlite3
 import rdflib
 import re
 from unidecode import unidecode
@@ -38,21 +37,31 @@ from rdflib.namespace import RDF, RDFS
 # TODO what does campanii_candidati.id_alegere point to?
 
 class DatabaseReader(object):
-    def __init__(self, db_path):
-        self.connection = sqlite3.connect(db_path)
-        self.connection.text_factory = str
+    def __init__(self, **config):
+        import MySQLdb
+        db = MySQLdb.connect(use_unicode=True, **config)
+        self.cursor = db.cursor()
+
+    def column_names(self, table_name):
+        self.cursor.execute("DESCRIBE %s" % table_name)
+        return [col[0] for col in self.cursor]
+
+    def dump(self, table_name):
+        self.cursor.execute("SELECT * FROM %s" % table_name)
+        return (row for row in self.cursor)
 
     def iter_table(self, table_name):
-        cursor = self.connection.cursor()
-        cursor.execute("SELECT * FROM %s" % table_name)
-        columns = [col[0] for col in cursor.description]
-        for row in cursor:
+        columns = self.column_names(table_name)
+        for row in self.dump(table_name):
             yield dict(zip(columns, row))
+
 
 def main():
     graph = rdflib.Graph()
 
-    sql = DatabaseReader(sys.argv[1])
+    with open(sys.argv[1], 'rb') as f:
+        config = json.load(f)
+    sql = DatabaseReader(**config)
 
     parties = {}
     for row in sql.iter_table('partide'):
@@ -112,7 +121,7 @@ def main():
             graph.add((campaign, civic_types['party'], party))
         graph.add((campaign, civic_types['election'], election))
         if row['rezultat_procent'] is not None:
-            fraction = rdflib.Literal(row['rezultat_procent'] / 100)
+            fraction = rdflib.Literal(float(row['rezultat_procent'] / 100))
             graph.add((campaign, civic_types['voteFraction'], fraction))
         win = bool(row['castigator'] == 3)
         graph.add((campaign, civic_types['win'], rdflib.Literal(win)))
