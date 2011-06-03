@@ -3,8 +3,7 @@ import json
 import re
 from unidecode import unidecode
 
-from dump_n3 import NsIRI, N3Dumper, new_blank_node
-from sparql import Literal
+from dump_n3 import NsIRI, N3Dumper, new_blank_node, make_literal
 
 def force_to_unicode(s):
     if type(s) is unicode:
@@ -69,7 +68,7 @@ def main():
     parties = {}
     for row in sql.iter_table('partide'):
         party = civic_party[slugify(row['den_scurta'])]
-        n3_dump(party, rdfs['label'], Literal(row['denumire']))
+        n3_dump(party, rdfs['label'], make_literal(row['denumire']))
         n3_dump(party, rdf['type'], civic_types['Party'])
         parties[row['id']] = party
 
@@ -78,7 +77,7 @@ def main():
         name =  u"%s %s" % (force_to_unicode(row['prenume']).strip(),
                             force_to_unicode(row['nume']).strip())
         person = civic_person[slugify(name)]
-        n3_dump(person, foaf['name'], Literal(name))
+        n3_dump(person, foaf['name'], make_literal(name))
         n3_dump(person, rdf['type'], civic_types['Person'])
         people[row['id']] = person
         party = parties.get(row['id_partid'], None)
@@ -103,14 +102,14 @@ def main():
         circumscriptie = admin_level[s]
 
         circumscriptii[row['id']] = circumscriptie
-        n3_dump(circumscriptie, rdfs['label'], Literal(name))
+        n3_dump(circumscriptie, rdfs['label'], make_literal(name))
 
     election_map = {}
     for row in [{'id': 14, 'name': "2008 Local elections, round 1"},
                 {'id': 15, 'name': "2008 Local elections, round 2"}]:
         election = civic_election[slugify(row['name'])]
         n3_dump(election, rdf['type'], civic_types['Election'])
-        n3_dump(election, rdfs['label'], Literal(row['name']))
+        n3_dump(election, rdfs['label'], make_literal(row['name']))
         election_map[row['id']] = election
 
     for row in sql.iter_table('campanii_candidati'):
@@ -124,10 +123,10 @@ def main():
             n3_dump(campaign, civic_types['party'], party)
         n3_dump(campaign, civic_types['election'], election)
         if row['rezultat_procent'] is not None:
-            fraction = Literal(float(row['rezultat_procent'] / 100))
+            fraction = make_literal(float(row['rezultat_procent'] / 100))
             n3_dump(campaign, civic_types['voteFraction'], fraction)
         win = bool(row['castigator'] == 3)
-        n3_dump(campaign, civic_types['win'], Literal(win))
+        n3_dump(campaign, civic_types['win'], make_literal(win))
         circumscriptie = circumscriptii.get(row['id_circumscriptie'], None)
         if circumscriptie is not None:
             n3_dump(campaign, civic_types['constituency'], circumscriptie)

@@ -5,6 +5,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'sparql-client',
+        'rdflib',
         'MySQL-python',
         'Unidecode',
     ],

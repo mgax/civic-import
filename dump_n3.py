@@ -15,8 +15,22 @@ class N3Dumper(object):
 
     __call__ = write
 
-next_id = 0
+_next_id = 0
 def new_blank_node():
-    global next_id
-    next_id += 1
-    return sparql.BlankNode('B%d' % next_id)
+    global _next_id
+    _next_id += 1
+    return sparql.BlankNode('B%d' % _next_id)
+
+from rdflib.term import _PythonToXSD
+_literal_types = [(cls, (cast or unicode, str(datatype_ref)))
+                  for (cls, (cast, datatype_ref)) in _PythonToXSD]
+
+def make_literal(value):
+    for cls, (cast, datatype) in _literal_types:
+        if isinstance(value, cls):
+            break
+
+    else:
+        cast, datatype = unicode, None
+
+    return sparql.Literal(value, datatype)
