@@ -1,8 +1,10 @@
 import sys
 import json
-import rdflib
 import re
 from unidecode import unidecode
+
+from dump_n3 import NsIRI, N3Dumper, new_blank_node
+from sparql import Literal
 
 def force_to_unicode(s):
     if type(s) is unicode:
@@ -16,15 +18,16 @@ _slug_pattern = re.compile(r'\W+', re.UNICODE)
 def slugify(s):
     return _slug_pattern.sub('-', str(unidecode(s)).lower())
 
-civic = rdflib.Namespace('http://civic.grep.ro/')
-civic_person = rdflib.Namespace(civic + 'person/')
-civic_office = rdflib.Namespace(civic + 'office/')
-civic_party = rdflib.Namespace(civic + 'party/')
-civic_types = rdflib.Namespace(civic + 'rdftypes/')
-civic_election = rdflib.Namespace(civic + 'election/')
-dc = rdflib.Namespace('http://purl.org/dc/elements/1.1/')
-foaf = rdflib.Namespace('http://xmlns.com/foaf/0.1/')
-from rdflib.namespace import RDF, RDFS
+civic = NsIRI('http://civic.grep.ro/')
+civic_person = civic['person/']
+civic_office = civic['office/']
+civic_party = civic['party/']
+civic_types = civic['rdftypes/']
+civic_election = civic['election/']
+dc = NsIRI('http://purl.org/dc/elements/1.1/')
+foaf = NsIRI('http://xmlns.com/foaf/0.1/')
+rdf = NsIRI('http://www.w3.org/1999/02/22-rdf-syntax-ns#')
+rdfs = NsIRI('http://www.w3.org/2000/01/rdf-schema#')
 
 # 'county' - judet (NUTS-3)
 # 'city' - oras, municipiu
@@ -57,7 +60,7 @@ class DatabaseReader(object):
 
 
 def main():
-    graph = rdflib.Graph()
+    n3_dump = N3Dumper(sys.stdout)
 
     with open(sys.argv[1], 'rb') as f:
         config = json.load(f)
@@ -66,8 +69,8 @@ def main():
     parties = {}
     for row in sql.iter_table('partide'):
         party = civic_party[slugify(row['den_scurta'])]
-        graph.add((party, RDFS['label'], rdflib.Literal(row['denumire'])))
-        graph.add((party, RDF['type'], civic_types['Party']))
+        n3_dump(party, rdfs['label'], Literal(row['denumire']))
+        n3_dump(party, rdf['type'], civic_types['Party'])
         parties[row['id']] = party
 
     people = {}
@@ -75,12 +78,12 @@ def main():
         name =  u"%s %s" % (force_to_unicode(row['prenume']).strip(),
                             force_to_unicode(row['nume']).strip())
         person = civic_person[slugify(name)]
-        graph.add((person, foaf['name'], rdflib.Literal(name)))
-        graph.add((person, RDF['type'], civic_types['Person']))
+        n3_dump(person, foaf['name'], Literal(name))
+        n3_dump(person, rdf['type'], civic_types['Person'])
         people[row['id']] = person
         party = parties.get(row['id_partid'], None)
         if party is not None:
-            graph.add((person, civic_types['memberInParty'], party))
+            n3_dump(person, civic_types['memberInParty'], party)
 
     admin_level_map = {
         3: civic['county/'],  # judet
@@ -97,42 +100,41 @@ def main():
             continue
         name = force_to_unicode(row['name'])
         s = slugify(name)
-        circumscriptie = rdflib.Namespace(admin_level)[s]
+        circumscriptie = admin_level[s]
 
         circumscriptii[row['id']] = circumscriptie
-        graph.add((circumscriptie, RDFS['label'], rdflib.Literal(name)))
+        n3_dump(circumscriptie, rdfs['label'], Literal(name))
 
     election_map = {}
     for row in [{'id': 14, 'name': "2008 Local elections, round 1"},
                 {'id': 15, 'name': "2008 Local elections, round 2"}]:
         election = civic_election[slugify(row['name'])]
-        graph.add((election, RDF['type'], civic_types['Election']))
-        graph.add((election, RDFS['label'], rdflib.Literal(row['name'])))
+        n3_dump(election, rdf['type'], civic_types['Election'])
+        n3_dump(election, rdfs['label'], Literal(row['name']))
         election_map[row['id']] = election
 
     for row in sql.iter_table('campanii_candidati'):
         person = people[row['id_candidat']]
         election = election_map[row['id_alegere']]
-        campaign = rdflib.BNode()
-        graph.add((campaign, RDF['type'], civic_types['Campaign']))
-        graph.add((campaign, civic_types['candidate'], person))
+        campaign = new_blank_node()
+        n3_dump(campaign, rdf['type'], civic_types['Campaign'])
+        n3_dump(campaign, civic_types['candidate'], person)
         party = parties.get(row['id_partid_acum'], None)
         if party is not None:
-            graph.add((campaign, civic_types['party'], party))
-        graph.add((campaign, civic_types['election'], election))
+            n3_dump(campaign, civic_types['party'], party)
+        n3_dump(campaign, civic_types['election'], election)
         if row['rezultat_procent'] is not None:
-            fraction = rdflib.Literal(float(row['rezultat_procent'] / 100))
-            graph.add((campaign, civic_types['voteFraction'], fraction))
+            fraction = Literal(float(row['rezultat_procent'] / 100))
+            n3_dump(campaign, civic_types['voteFraction'], fraction)
         win = bool(row['castigator'] == 3)
-        graph.add((campaign, civic_types['win'], rdflib.Literal(win)))
+        n3_dump(campaign, civic_types['win'], Literal(win))
         circumscriptie = circumscriptii.get(row['id_circumscriptie'], None)
         if circumscriptie is not None:
-            graph.add((campaign, civic_types['constituency'], circumscriptie))
+            n3_dump(campaign, civic_types['constituency'], circumscriptie)
             if win:
-                graph.add((person, civic_office['mayor'], circumscriptie))
+                n3_dump(person, civic_office['mayor'], circumscriptie)
 
-    print>>sys.stderr, '%d triples' % len(graph)
-    graph.serialize(sys.stdout)
+    print>>sys.stderr, '%d triples' % n3_dump.count
 
 if __name__ == '__main__':
     main()
